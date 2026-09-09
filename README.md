@@ -1,175 +1,185 @@
-# VR Mod para HOPECORE / "Control, I'm Not Coming Back"
+# VR Mod for HOPECORE / "Control, I'm Not Coming Back"
 
-Mod de VR de 6DOF (solo tracking de cabeza, sin mandos de movimiento) para este juego de Unity no-VR,
-hecho como proyecto personal/divertido. Movimiento y todas las acciones se hacen con teclado/ratón como
-siempre; la cabeza controla la cámara y un puntero central (gaze) sirve para interactuar. Estado: jugado
-de principio a fin en VR sin problemas de nuestro código (quedan un par de limitaciones conocidas, ver
-abajo).
+*[Versión en español](README.es.md)*
 
-## Cómo funciona todo (arquitectura)
+## AI usage disclaimer
 
-Tres piezas, cada una en su propia carpeta/DLL:
+This mod was developed with the help of Claude (Claude Code, Anthropic), an LLM-based coding assistant.
+Claude wrote most of the `UnityVRModFix` code, decompiled and analyzed the game's and UnityVRMod's code
+to diagnose issues, and drafted this README, all under the direction and supervision of a human (every
+design decision, in-headset test, and final validation was done by a person). As with any AI-generated
+code: review before trusting blindly, especially if you plan to modify or reuse it in another project.
 
-1. **BepInEx 6** (bleeding-edge #785, variante Mono) — el "cargador de mods" de Unity. Inyectado vía
-   doorstop (`winhttp.dll` + `doorstop_config.ini`) en la raíz del juego.
-2. **UnityVRMod v0.1.0-beta** (`BepInEx\plugins\UnityVRMod\`) — el mod de terceros
-   (https://github.com/NewUnityModder/UnityVRMod) que realmente habla con SteamVR/OpenVR: crea el rig de
-   cámaras estéreo, lee las poses del headset y envía los frames al compositor. No sabe nada de este
-   juego en concreto.
-3. **UnityVRModFix** (`mod\UnityVRModFix\`, este proyecto) — nuestro propio plugin de BepInEx, escrito
-   para este mod. Usa Harmony para parchear tanto UnityVRMod como el propio código del juego
-   (`Assembly-CSharp.dll`) y arreglar todo lo que no funciona out-of-the-box: cámara que no sigue al
-   juego, canvases de UI invisibles en VR, altura doblada, vídeos que no se ven, etc. Es el único código
-   que hemos escrito nosotros; todo lo demás es de terceros.
+6DOF VR mod (head tracking only, no motion controllers) for this non-VR Unity game, built as a personal/
+fun project. Movement and every action still use keyboard/mouse as usual; the head drives the camera and
+a center-screen gaze pointer is used to interact. Status: played start to finish in VR with no issues
+from our own code (a couple of known limitations remain, see below).
 
-`UnityVRModFix.dll` se compila con `dotnet build -c Release` dentro de `mod\UnityVRModFix\` y se copia a
-mano a `BepInEx\plugins\UnityVRModFix\UnityVRModFix.dll`. El `.csproj` referencia copias locales de las
-DLLs del juego/Unity/UnityVRMod (todas con `<Private>false</Private>`, solo para compilar contra sus
-tipos - nunca se redistribuyen).
+## How it all works (architecture)
 
-**UnityVRMod no soporta D3D12** (solo D3D11), y este juego arranca en D3D12 por defecto. Hay que forzar
-`-force-d3d11` como opción de lanzamiento (Steam → clic derecho → Propiedades → Opciones de lanzamiento).
+Three pieces, each in its own folder/DLL:
 
-## Los arreglos (`mod\UnityVRModFix\*.cs`)
+1. **BepInEx 6** (bleeding-edge #785, Mono variant); Unity's "mod loader". Injected via doorstop
+   (`winhttp.dll` + `doorstop_config.ini`) in the game's root folder.
+2. **UnityVRMod v0.1.0-beta** (`BepInEx\plugins\UnityVRMod\`); the third-party mod
+   (https://github.com/NewUnityModder/UnityVRMod) that actually talks to SteamVR/OpenVR: builds the
+   stereo camera rig, reads the headset's poses, and submits frames to the compositor. It knows nothing
+   about this specific game.
+3. **UnityVRModFix** (`mod\UnityVRModFix\`, this project); our own BepInEx plugin, written for this mod.
+   Uses Harmony to patch both UnityVRMod and the game's own code (`Assembly-CSharp.dll`) to fix
+   everything that doesn't work out of the box: camera not following the game, UI canvases invisible in
+   VR, doubled height, videos not showing, etc. This is the only code we wrote ourselves; everything else
+   is third-party.
 
-Todos se aplican vía Harmony desde `Plugin.cs` al arrancar. Los activos ahora mismo:
+`UnityVRModFix.dll` is built with `dotnet build -c Release` inside `mod\UnityVRModFix\` and copied by
+hand to `BepInEx\plugins\UnityVRModFix\UnityVRModFix.dll`. The `.csproj` references local copies of the
+game's/Unity's/UnityVRMod's DLLs (all with `<Private>false</Private>`, only to compile against their
+types; never redistributed).
 
-- **`CameraFollowFix.cs`** — UnityVRMod solo copia la posición/rotación de la cámara del juego al rig VR
-  UNA vez, al crear el rig. Este juego mueve la cámara con Cinemachine constantemente (siguiendo al
-  jugador, reencuadres, etc.), así que sin esto el rig se queda flotando donde estaba la cámara en el
-  instante 0. Reescribe la posición/yaw del rig cada frame, antes de aplicar el head-tracking encima.
-- **`HeightFix.cs`** — UnityVRMod usa espacio de tracking "Standing" (altura absoluta real del headset
-  sobre el suelo), que se sumaba a la altura de ojos ya correcta de la cámara del juego, duplicando la
-  altura. Cambiado a "Seated" (altura relativa a donde estaba el headset al activar VR).
-- **`PointerFix.cs`** — el raycast de interacción del juego (`CheckRay`) usaba la cámara plana, cuyo
-  pitch no sigue al headset (solo el yaw, vía `CameraFollowFix`). Lo sustituye por un raycast desde la
-  mirada real del headset, para que el crosshair/interacción sigan a donde miras con la cabeza.
-- **`CameraCleanerFix.cs`** — una cámara "CameraCleaner" (probablemente una esfera que oculta el fondo,
-  pensada para estar siempre centrada en la cámara plana) se volvía visible por dentro al mover la
-  cabeza en VR. Desactivada mientras el rig VR esté activo.
-- **`PlayerCapsuleFix.cs`** — el propio jugador tenía una malla de cápsula de colisión visible (textura
-  de cuadros, claramente un placeholder de desarrollo), invisible en modo plano porque la cámara está
-  siempre en su centro exacto. Oculta su renderer mientras el rig VR esté activo.
-- **`BackwardMovementFix.cs`** — dos cambios al movimiento (`FirstPersonController.FixedUpdate`):
-  (1) el juego bloqueaba caminar hacia atrás, quitado; (2) el movimiento ahora es relativo a hacia dónde
-  mira la CABEZA (headset), no hacia dónde apunta el cuerpo/cámara plana — así "adelante" en el stick
-  es intuitivo en VR. Reversible con `BackwardMovementFix.Enabled = false`.
-- **`GamepadEmulator.cs`** (clase `ActionEnableFix`, el nombre del archivo quedó desactualizado) — varias
-  Input Actions del juego ("Move", "Look", "Interact") empiezan deshabilitadas por razones ajenas a
-  cualquier mando/dispositivo; las reactiva cada frame, respetando los bloqueos de movimiento reales del
-  juego (`playerCanMove`/`cameraCanMove`) y una lista explícita de escenas con el movimiento bloqueado a
-  propósito (hoy solo `1_ModuloMandosCohete`, la consola de mandos del cohete). También resetea el flag
-  `GameManager.IsInDialogue()` al cambiar de escena y al arrancar, porque se queda pillado en `true` (bug
-  del propio juego, no nuestro) y bloquearía "Interact" para siempre si no se corrigiera.
-- **`CanvasFix.cs`** — el arreglo más grande. Los Canvas en modo "Screen Space" (la inmensa mayoría de la
-  UI del juego: diálogos, menús, crosshair) no llegan a las cámaras estéreo de VR, así que son invisibles
-  con el headset puesto. Los convierte a "World Space" y los cuelga delante de la cabeza:
-  - Solo convierte canvases con texto real, el crosshair, los de vídeo, o el "Fade Canvas" (fundido a
-    color / créditos) — el resto son overlays decorativos (filtros, marcos de resolución) que se
-    quedarían como una segunda pantalla flotante y se descartan.
-  - Se cuelgan de un ancla `DontDestroyOnLoad` (no del rig VR, que se destruye y recrea en cada cambio de
-    escena) que copia la pose de la cámara del ojo izquierdo cada frame — separado en `Tick()` (barrido
-    de canvases nuevos, con throttle de 0,25s) y `LateTick()` (solo mover el ancla, cada frame, para que
-    el diálogo no vaya a tirones).
-  - El diálogo/menú normal va a 2m de distancia; los "fullScreen" (vídeo) a 4m y mucho más grandes.
-  - El "Fade Canvas" es especial: el mismo objeto se usa tanto para el flash blanco de la explosión (sin
-    texto) como para los créditos finales (con texto) — su tamaño se recalcula cada `Tick()` según si
-    tiene texto activo en ese momento: pequeño/legible con texto (créditos), grande y muy cerca (0,6m)
-    sin texto (flash que debe cegar/cubrir el campo de visión).
-  - Al cambiar de escena, destruye los canvases adoptados que no vinieran de la escena "Persistent"
-    (para que no se acumulen para siempre), dejando intactos los que sí (como el crosshair).
-  - También desactiva cualquier `RawImage` con una `RenderTexture` en vivo (cámara de fondo) dentro de un
-    canvas normal — el menú principal tiene un filtro retro pixelado así, y al convertir su canvas a
-    world-space esa cámara de fondo acababa grabándose a sí misma, un efecto recursivo de "pantalla
-    dentro de pantalla".
-- **`VideoFix.cs`** — los `VideoPlayer` en modo `CameraFarPlane`/`CameraNearPlane` (dibujan sobre la
-  cámara plana original) no llegan a las cámaras VR. Redirige cada uno a su propia `RenderTexture` y un
-  panel dedicado delante del jugador, visible solo mientras `isPlaying`. Se reafirma cada 0,25s (no cada
-  frame) y se oculta a la fuerza en cada cambio de escena, para que un vídeo que ya terminó no se quede
-  flotando en la siguiente escena.
-- **`RigidbodyInterpolationFix.cs`** — objetos con física real (la canoa, las piedras deslizantes) se
-  mueven en `FixedUpdate` a 50Hz fijos; sin interpolación, su posición visual da saltos notables a los
-  90Hz+ de VR. Activa `Rigidbody.interpolation = Interpolate` en cada Rigidbody no-kinemático de la
-  escena, **excepto el del propio jugador** (que se mueve con el mismo patrón de física, y activarle
-  interpolación a él hacía que TODO el juego se sintiera a tirones, no solo la canoa).
-- **`CinemachineUpdateModeFix.cs`** — la interpolación del Rigidbody no bastaba: `CinemachineBrain`
-  (la cámara del juego) viene en modo `SmartUpdate`, que para un objetivo con Rigidbody elige
-  automáticamente actualizarse en `FixedUpdate` también — o sea, la propia cámara solo cambia de
-  posición 50 veces/seg, con o sin interpolación en el objeto que sigue. Fuerza `UpdateMethod =
-  LateUpdate` (se reevalúa cada frame de render), que combinado con la interpolación de arriba sí
-  produce cámara suave seguiendo un objeto físico.
+**UnityVRMod doesn't support D3D12** (D3D11 only), and this game boots into D3D12 by default. You have to
+force `-force-d3d11` as a launch option (Steam right-click the game -> Properties -> Launch Options).
 
-## Cosas que probamos y NO funcionaron (dejadas desactivadas a propósito)
+## The fixes (`mod\UnityVRModFix\*.cs`)
 
-Texto de diálogo/menú detrás de geometría cercana (TextMeshPro no tiene ninguna propiedad de ZTest
-expuesta, y el shader "Distance Field Overlay" que la ignora no está incluido en este build). Probamos
-4 enfoques, todos fallidos, código dejado en el repo comentado/inerte por si se retoma:
+All applied via Harmony from `Plugin.cs` at startup. Currently active:
 
-- **`RenderEyeOverlayFix.cs`** — re-renderizar la cámara de cada ojo una segunda vez (solo la capa de UI,
-  con el buffer de profundidad limpio) para dibujar el texto siempre encima. Probamos 3 variantes
-  (doble-submit al compositor de OpenVR, `ClearFlags.Depth`, `GL.Clear` manual + `ClearFlags.Nothing`):
-  la primera colgaba la vista VR en cada cambio de escena; las otras dos dejaban la pantalla entera en
-  amarillo sólido. Las cámaras de ojo de UnityVRMod están deshabilitadas y se renderizan a mano con
-  `Camera.Render()` justo antes de un único `Submit()` al compositor — una segunda llamada a `Render()`
-  ahí parece ser, en sí misma, incompatible con este pipeline.
-- **`TransparentDepthClearFix.cs`** — en vez de un segundo `Render()`, añadir un `CommandBuffer` a las
-  cámaras del ojo (limpia profundidad justo antes de la cola "transparente", donde cae la UI) para que
-  se ejecute como parte de SU ÚNICA pasada normal. Confirmado con una prueba de color magenta que el
-  `CommandBuffer` simplemente nunca se ejecuta: esas cámaras están fuera del bucle normal de renderizado
-  de Unity del que depende `AddCommandBuffer`/`CameraEvent`.
+- **`CameraFollowFix.cs`**; UnityVRMod only copies the game camera's position/rotation onto the VR rig
+  ONCE, when the rig is built. This game moves its camera with Cinemachine constantly (following the
+  player, reframing shots, etc.), so without this the rig is left floating wherever the camera happened
+  to be at instant zero. Re-syncs the rig's position/yaw every frame, before applying head tracking on
+  top.
+- **`HeightFix.cs`**; UnityVRMod uses "Standing" tracking space (the headset's real absolute height above
+  the floor), which was being added on top of the game camera's already-correct eye height, doubling it.
+  Switched to "Seated" (height relative to wherever the headset was when VR was activated).
+- **`PointerFix.cs`**; the game's interaction raycast (`CheckRay`) used the flat camera, whose pitch
+  doesn't follow the headset (only yaw does, via `CameraFollowFix`). Replaced with a raycast from the
+  headset's actual gaze, so the crosshair/interaction follow wherever you look with your head.
+- **`CameraCleanerFix.cs`**; a "CameraCleaner" camera (likely a sphere hiding the background, meant to
+  always stay centered on the flat camera) became visible from the inside when moving your head in VR.
+  Disabled while the VR rig is active.
+- **`PlayerCapsuleFix.cs`**; the player itself had a visible collision-capsule mesh (checkerboard texture,
+  clearly a dev placeholder), invisible in flat mode because the camera always sits exactly at its
+  center. Disables its renderer while the VR rig is active.
+- **`BackwardMovementFix.cs`**; two changes to movement (`FirstPersonController.FixedUpdate`): (1) the
+  game blocked walking backward, removed; (2) movement is now relative to where the HEAD (headset) is
+  looking, not where the body/flat camera points; so "forward" on the stick is intuitive in VR.
+  Reversible via `BackwardMovementFix.Enabled = false`.
+- **`GamepadEmulator.cs`** (class `ActionEnableFix`; the filename is outdated); several of the game's
+  Input Actions ("Move", "Look", "Interact") start out disabled for reasons unrelated to any controller/
+  device; re-enables them every frame, respecting the game's real movement locks (`playerCanMove`/
+  `cameraCanMove`) and an explicit list of scenes where movement is deliberately locked (today just
+  `1_ModuloMandosCohete`, the rocket control console). Also resets the `GameManager.IsInDialogue()` flag
+  on scene change and startup, since it gets stuck `true` (a bug in the game itself, not ours) and would
+  permanently block "Interact" if not corrected.
+- **`CanvasFix.cs`**; the biggest fix. "Screen Space" canvases (the vast majority of the game's UI:
+  dialogue, menus, crosshair) never reach the VR stereo cameras, so they're invisible with the headset
+  on. Converts them to "World Space" and hangs them in front of the head:
+  - Only converts canvases with actual text, the crosshair, video ones, or the "Fade Canvas" (color fade
+    / credits); everything else is a decorative overlay (filters, resolution frames) that would just show
+    up as a floating second screen, and gets skipped.
+  - Hung off a `DontDestroyOnLoad` anchor (not the VR rig, which gets destroyed and rebuilt on every scene
+    change) that copies the left eye camera's pose every frame; split into `Tick()` (scan for new
+    canvases, throttled to 0.25s) and `LateTick()` (just move the anchor, every frame, so dialogue doesn't
+    feel choppy).
+  - Normal dialogue/menu panels sit 2m away; "fullScreen" ones (video) sit 4m away and much bigger.
+  - The "Fade Canvas" is a special case: the same object doubles as both the ship-explosion white flash
+    (no text) and the end credits (real text); its size is recomputed every `Tick()` based on whether it
+    currently has active text: small/legible with text (credits), big and very close (0.6m) without text
+    (a flash meant to blind/cover the whole field of view).
+  - On scene change, destroys adopted canvases that didn't come from the "Persistent" scene (so they
+    don't pile up forever), leaving the ones that did (like the crosshair) alone.
+  - Also disables any `RawImage` showing a live `RenderTexture` (a background camera feed) inside a
+    normal canvas; the main menu has a retro pixelation filter like this, and converting its canvas to
+    world space made that background camera end up recording itself, a recursive "screen inside screen"
+    effect.
+- **`VideoFix.cs`**; `VideoPlayer`s in `CameraFarPlane`/`CameraNearPlane` mode (draw onto the original
+  flat camera) never reach the VR cameras. Redirects each one to its own `RenderTexture` and a dedicated
+  panel in front of the player, shown only while `isPlaying`. Reasserted every 0.25s (not every frame) and
+  force-hidden on every scene change, so a video that already ended doesn't stay floating in the next
+  scene.
+- **`RigidbodyInterpolationFix.cs`**; objects driven by real physics (the canoe, the sliding stones) move
+  in `FixedUpdate` at a fixed 50Hz; without interpolation, their visual position visibly steps at VR's
+  90Hz+. Enables `Rigidbody.interpolation = Interpolate` on every non-kinematic Rigidbody in the scene,
+  **except the player's own** (which moves with the same physics pattern, and enabling interpolation on
+  it made the WHOLE game feel choppy, not just the canoe).
+- **`CinemachineUpdateModeFix.cs`**; Rigidbody interpolation alone wasn't enough: `CinemachineBrain` (the
+  game's camera) defaults to `SmartUpdate`, which for a Rigidbody target automatically chooses to update
+  in `FixedUpdate` too; meaning the camera itself only changes position 50 times/sec, interpolation or
+  not on the object it follows. Forces `UpdateMethod = LateUpdate` (re-evaluated every render frame),
+  which combined with the interpolation above does produce smooth camera motion following a physics
+  object.
 
-Si algún día se quiere retomar, la pista más prometedora sin tocar el pipeline de render sería suavizar
-manualmente la lectura en `CameraFollowFix.cs` (interpolar nosotros la posición leída) en vez de tocar
-Rigidbody/Cinemachine — pero no se ha probado.
+## Things we tried that did NOT work (left disabled on purpose)
 
-## Archivos muertos (no se cargan, no hacen nada)
+Dialogue/menu text getting hidden behind nearby geometry (TextMeshPro exposes no ZTest property, and the
+"Distance Field Overlay" shader that would ignore it isn't included in this build). We tried 4 approaches,
+all failed, code left in the repo commented out/inert in case it's revisited:
 
-- **`DialogueAdvanceFix.cs`** — quedó sin usar tras quitar por completo el soporte de mandos/láser (el
-  usuario pidió eliminarlo entero y volver a teclado/ratón + puntero de mirada). Compila pero nadie lo
-  llama desde `Plugin.cs`.
+- **`RenderEyeOverlayFix.cs`**; re-render each eye camera a second time (just the UI layer, with the depth
+  buffer cleared) to draw the text always on top. Tried 3 variants (double-submitting to the OpenVR
+  compositor, `ClearFlags.Depth`, manual `GL.Clear` + `ClearFlags.Nothing`): the first froze the VR view
+  on every scene change; the other two left the whole screen solid yellow. UnityVRMod's eye cameras are
+  disabled and rendered by hand via `Camera.Render()` right before a single `Submit()` to the compositor;
+  a second `Render()` call there seems to be, by itself, incompatible with this pipeline.
+- **`TransparentDepthClearFix.cs`**; instead of a second `Render()`, attach a `CommandBuffer` to the eye
+  cameras (clears depth right before the "transparent" queue, where the UI lands) so it runs as part of
+  their SINGLE normal pass. Confirmed with a magenta-color test that the `CommandBuffer` simply never
+  executes: those cameras are outside the normal Unity render loop that `AddCommandBuffer`/`CameraEvent`
+  depends on.
 
-## Hotkeys de diagnóstico (`Plugin.cs`, activas en todo momento)
+If this is ever revisited, the most promising lead without touching the render pipeline would be manually
+smoothing the read in `CameraFollowFix.cs` (interpolating the read position ourselves) instead of touching
+Rigidbody/Cinemachine; untested so far.
 
-- **F3** — vuelca todos los `VideoPlayer` de la escena (modo, textura, si se ven en algún renderer).
-- **F4** — vuelca los `Renderer` a menos de 5m del rig VR (mesh, material, shader).
-- **F5** — fuerza `GameManager.IsInDialogue(false)` a mano, por si el flag se queda pillado.
-- **F6** — vuelca el estado del `FirstPersonController` (puede moverse/mirar) y si el juego cree que hay
-  un diálogo activo.
-- **F8** — vuelca todos los `Canvas` (modo, tamaño, si tienen texto/RawImage, textura de esas RawImage).
-- **F9** — vuelca todas las `Camera` de la escena (cuál es `Camera.main`, si tienen `CinemachineBrain`).
+## Dead files (not loaded, do nothing)
 
-## Config del mod (`BepInEx\config\com.newunitymodder.unityvrmod.cfg`)
+- **`DialogueAdvanceFix.cs`**; left unused after fully removing controller/laser support (the user asked
+  to remove it entirely and go back to keyboard/mouse + gaze pointer). Compiles but nothing calls it from
+  `Plugin.cs`.
 
-- `VR World Scale` — 1 = normal; súbelo si el mundo se siente diminuto, bájalo si se siente gigante.
-- `User Eye Height Offset` — ajuste de altura de ojos en metros.
-- `Asserted Camera Overrides` — si UnityVRMod detecta la cámara equivocada, fuerza manualmente qué
-  GameObject/cámara usar. Formato: `NombreEscena|Ruta/A/La/Camara;`. Hoy mismo se usa `MainCamera` global.
-- `Scene-Specific Pose Overrides` — posición/rotación inicial del rig VR por escena.
-- `Safe Mode Level` — en `FullVrReinitOnToggle` (recomendado para OpenVR, evita sesiones colgadas al
-  activar/desactivar VR a mano).
-- `Automatic Safe Mode Duration` — cuánto se desactiva el render VR en cada cambio de escena. Trade-off:
-  - **0.2** (valor actual) = más estable. Con 0.1 tuvimos varios crashes duros y silenciosos (sin
-    excepción de C#, el log de BepInEx simplemente se corta) justo en transiciones de escena.
-  - **0.1** = transición más rápida/menos intrusiva, pero más riesgo de crash en el cambio de escena.
-  - Importante: los crashes vistos con 0.1 resultaron ser del **driver de la gráfica AMD**
-    (excepción de Windows `0xc0000005`, módulo "unknown", stack trace repetido byte a byte dentro de
-    `amdxx64.dll`, visible en `%LOCALAPPDATA%\Temp\DesbordeGames\HOPECORE\Crashes\`), no de este mod ni
-    de UnityVRMod. Antes de descartar 0.1 del todo, merece la pena actualizar/reinstalar el driver de
-    AMD y desactivar el overlay de Radeon Software (una causa muy común de crashes así en juegos que
-    renderizan manualmente a texturas, como hace este mod para VR).
+## Diagnostic hotkeys (`Plugin.cs`, always active)
 
-## Cómo probarlo con el visor
+- **F3**; dumps every `VideoPlayer` in the scene (mode, texture, whether it's shown on any renderer).
+- **F4**; dumps every `Renderer` within 5m of the VR rig (mesh, material, shader).
+- **F5**; forces `GameManager.IsInDialogue(false)` by hand, in case the flag gets stuck.
+- **F6**; dumps the `FirstPersonController`'s state (can move/look) and whether the game thinks a dialogue
+  is active.
+- **F8**; dumps every `Canvas` (mode, size, whether it has text/RawImage, texture of those RawImages).
+- **F9**; dumps every `Camera` in the scene (which one is `Camera.main`, whether they have a
+  `CinemachineBrain`).
 
-1. Abre SteamVR primero (headset conectado y encendido).
-2. Lanza el juego con `-force-d3d11` (opciones de lanzamiento de Steam, o
-   `HOPECORE.exe -force-d3d11` directamente).
-3. Revisa `BepInEx\LogOutput.log` — deberías ver
-   `[VRModCore] Unity VR Mod 0.1.0 (Mono) fully initialized.` y las líneas `[UnityVRMod Debug-Hotkey Fix]
-   [...] Patched ...` de cada arreglo de arriba.
-4. El mod arranca en Safe Mode. Usa el toggle de Safe Mode del propio UnityVRMod para activar el
-   renderizado estéreo/head-tracking (y para volver a Safe Mode si algo va mal).
+## Mod config (`BepInEx\config\com.newunitymodder.unityvrmod.cfg`)
 
-## Compilar y desplegar tras un cambio
+- `VR World Scale`; 1 = normal, raise it if the world feels tiny, lower it if it feels huge.
+- `User Eye Height Offset`; eye-height adjustment in meters.
+- `Asserted Camera Overrides`; if UnityVRMod picks the wrong camera, this forces which GameObject/camera
+  to use manually. Format: `SceneName|Path/To/Camera;`. Currently used for `MainCamera` globally.
+- `Scene-Specific Pose Overrides`; per-scene initial position/rotation for the VR rig.
+- `Safe Mode Level`; set to `FullVrReinitOnToggle` (recommended for OpenVR, avoids a stuck session when
+  toggling VR by hand).
+- `Automatic Safe Mode Duration`; how long VR rendering is disabled on every scene change. Trade-off:
+  - **0.2** (current value) = more stable. At 0.1 we hit several hard, silent crashes (no C# exception,
+    the BepInEx log just cuts off) right at scene transitions.
+  - **0.1** = faster/less intrusive transitions, but more crash risk on scene change.
+  - Important: the crashes seen at 0.1 turned out to be the **AMD graphics driver**
+    (Windows exception `0xc0000005`, module "unknown", the exact same byte-for-byte stack trace inside
+    `amdxx64.dll` every time, visible in `%LOCALAPPDATA%\Temp\DesbordeGames\HOPECORE\Crashes\`), not this
+    mod or UnityVRMod. Before ruling out 0.1 entirely, it's worth updating/reinstalling the AMD driver and
+    disabling the Radeon Software overlay (a very common cause of crashes like this in games that
+    manually render to textures, like this mod does for VR).
+
+## How to test it with the headset
+
+1. Open SteamVR first (headset connected and on).
+2. Launch the game with `-force-d3d11` (Steam launch options, or run
+   `HOPECORE.exe -force-d3d11` directly).
+3. Check `BepInEx\LogOutput.log`; you should see
+   `[VRModCore] Unity VR Mod 0.1.0 (Mono) fully initialized.` and the `[UnityVRMod Debug-Hotkey Fix]
+   [...] Patched ...` lines for each fix above.
+4. The mod starts in Safe Mode. Use UnityVRMod's own Safe Mode toggle to enable stereo rendering/head
+   tracking (and to fall back to Safe Mode if something goes wrong).
+
+## Building and deploying after a change
 
 ```
 cd mod\UnityVRModFix
@@ -177,4 +187,4 @@ dotnet build -c Release
 copy bin\Release\UnityVRModFix.dll ..\..\BepInEx\plugins\UnityVRModFix\UnityVRModFix.dll
 ```
 
-Reiniciar el juego para que cargue el DLL nuevo (BepInEx no hace hot-reload de plugins).
+Restart the game to load the new DLL (BepInEx doesn't hot-reload plugins).

@@ -1,0 +1,20 @@
+# Build output
+UnityVRModFix/bin/
+UnityVRModFix/obj/
+
+# Third-party DLLs copied in only so the project compiles against their types
+# (game code, Unity engine modules, BepInEx, Harmony, UnityVRMod). Not ours to redistribute -
+# see README.md for where to get each one.
+UnityVRModFix/*.dll
+
+# Zipped third-party downloads (BepInEx, UnityVRMod releases)
+downloads/
+
+# Decompiled game source (Assembly-CSharp) - the game's own copyrighted code, never redistribute
+decompiled/
+
+# Local DLL/source snapshots taken as safety nets during development
+backups/
+
+# Empty placeholder, nothing to track
+lib/

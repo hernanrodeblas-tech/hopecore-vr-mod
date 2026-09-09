@@ -25,7 +25,8 @@ BepInEx, UnityVRMod, and our own `UnityVRModFix` plugin together, already config
 1. Extract the zip's contents directly into the game's install folder (the one with `HOPECORE.exe`).
 2. Steam: right-click the game -> Properties -> Launch Options -> add `-force-d3d11`.
 3. Make sure SteamVR is installed and your headset is connected/on.
-4. Launch the game normally from Steam.
+4. Launch the game normally from Steam. It starts in Safe Mode (flat screen); press **F11** once
+   loaded in to switch to VR (press it again to fall back to Safe Mode if something goes wrong).
 
 (Full steps also included as `INSTALL.txt` inside the zip.)
 
@@ -216,8 +217,8 @@ Rigidbody/Cinemachine; untested so far.
 3. Check `BepInEx\LogOutput.log`; you should see
    `[VRModCore] Unity VR Mod 0.1.0 (Mono) fully initialized.` and the `[UnityVRMod Debug-Hotkey Fix]
    [...] Patched ...` lines for each fix above.
-4. The mod starts in Safe Mode. Use UnityVRMod's own Safe Mode toggle to enable stereo rendering/head
-   tracking (and to fall back to Safe Mode if something goes wrong).
+4. The mod starts in Safe Mode (flat screen). Press **F11** to toggle Safe Mode off and switch to stereo
+   rendering/head tracking (press it again to fall back to Safe Mode if something goes wrong).
 
 ## Building and deploying after a change
 

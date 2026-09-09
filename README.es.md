@@ -28,7 +28,8 @@ UnityVRMod y nuestro propio plugin `UnityVRModFix` juntos, ya configurados.
    `HOPECORE.exe`).
 2. Steam: clic derecho al juego -> Propiedades -> Opciones de lanzamiento -> añade `-force-d3d11`.
 3. Asegúrate de tener SteamVR instalado y el visor conectado/encendido.
-4. Lanza el juego normal desde Steam.
+4. Lanza el juego normal desde Steam. Arranca en Safe Mode (pantalla plana); pulsa **F11** una vez
+   cargado para pasar a VR (púlsalo otra vez para volver a Safe Mode si algo va mal).
 
 (Los pasos completos también vienen como `INSTALL.txt` dentro del zip.)
 
@@ -221,8 +222,8 @@ Rigidbody/Cinemachine; pero no se ha probado.
 3. Revisa `BepInEx\LogOutput.log`; deberías ver
    `[VRModCore] Unity VR Mod 0.1.0 (Mono) fully initialized.` y las líneas `[UnityVRMod Debug-Hotkey Fix]
    [...] Patched ...` de cada arreglo de arriba.
-4. El mod arranca en Safe Mode. Usa el toggle de Safe Mode del propio UnityVRMod para activar el
-   renderizado estéreo/head-tracking (y para volver a Safe Mode si algo va mal).
+4. El mod arranca en Safe Mode (pantalla plana). Pulsa **F11** para desactivar el Safe Mode y pasar al
+   renderizado estéreo/head-tracking (púlsalo otra vez para volver a Safe Mode si algo va mal).
 
 ## Compilar y desplegar tras un cambio
 

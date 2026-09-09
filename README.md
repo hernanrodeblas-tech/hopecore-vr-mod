@@ -15,6 +15,46 @@ fun project. Movement and every action still use keyboard/mouse as usual; the he
 a center-screen gaze pointer is used to interact. Status: played start to finish in VR with no issues
 from our own code (a couple of known limitations remain, see below).
 
+## Installation
+
+### Option A: all-in-one package (recommended)
+
+Grab **`HOPECORE-VR-Mod-vX.Y-AllInOne.zip`** from the [Releases page](../../releases). It bundles
+BepInEx, UnityVRMod, and our own `UnityVRModFix` plugin together, already configured.
+
+1. Extract the zip's contents directly into the game's install folder (the one with `HOPECORE.exe`).
+2. Steam: right-click the game -> Properties -> Launch Options -> add `-force-d3d11`.
+3. Make sure SteamVR is installed and your headset is connected/on.
+4. Launch the game normally from Steam.
+
+(Full steps also included as `INSTALL.txt` inside the zip.)
+
+### Option B: install everything separately
+
+If you'd rather assemble it yourself (e.g. to use a different BepInEx/UnityVRMod version):
+
+1. Download and extract [BepInEx 6](https://github.com/BepInEx/BepInEx) (Mono variant) into the game's
+   root folder.
+2. Download and extract [UnityVRMod](https://github.com/NewUnityModder/UnityVRMod) (OpenVR + Mono
+   variant) into `BepInEx\plugins\UnityVRMod\`.
+3. Grab just `UnityVRModFix.dll` from this repo's Releases and put it in
+   `BepInEx\plugins\UnityVRModFix\UnityVRModFix.dll` (or build it yourself, see "Building and deploying"
+   below).
+4. Same last two steps as Option A: `-force-d3d11` launch option, SteamVR running before you launch.
+
+## Licenses / third-party software
+
+This repo (`UnityVRModFix`'s source code) is our own; see the git history for authorship. It depends on
+and, in the all-in-one release package, bundles two separate third-party projects, unmodified:
+
+- **[BepInEx](https://github.com/BepInEx/BepInEx)** 6 (bleeding-edge #785, Mono variant); GNU Lesser
+  General Public License v2.1. License text included as `LICENSE-BepInEx.txt` in the release package.
+- **[UnityVRMod](https://github.com/NewUnityModder/UnityVRMod)** v0.1.0-beta (OpenVR + Mono variant);
+  GNU General Public License v3.0. License text included as `LICENSE-UnityVRMod.txt` in the release
+  package.
+
+Neither this repo nor the release packages contain any code or assets from the game itself.
+
 ## How it all works (architecture)
 
 Three pieces, each in its own folder/DLL:

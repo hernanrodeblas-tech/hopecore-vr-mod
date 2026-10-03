@@ -18,3 +18,15 @@ backups/
 
 # Empty placeholder, nothing to track
 lib/
+
+# Audio extracted from the game's FMOD banks (the game's own copyrighted assets; never commit)
+extracted_music/
+extracted_voices/
+
+# Release/test packages and social post drafts live outside version control
+*.zip
+reddit_post_draft.md
+linkedin_post_draft.md
+
+# Videos
+*.mp4

@@ -360,25 +360,49 @@ internal static class CanvasFix
         // destroyed when ITS OWN originating scene unloads - which used to happen normally and
         // is why each scene gets its own fresh Dialogue/menu canvases. Without that, every
         // scene's canvases just pile up on top of each other forever. So on every scene change,
-        // destroy whichever adopted canvases came from a scene that isn't Persistent (i.e.
-        // belonged to the level just left) and let the new scene's own fresh canvases get
-        // discovered and converted normally. Canvases that came from Persistent (like the
-        // player's crosshair) are left alone - they're still valid.
-        SceneManager.activeSceneChanged += (_, _) =>
+        // destroy the adopted canvases that belonged to the level just left (or to a scene that
+        // is no longer loaded at all, e.g. one that was preloaded and never activated).
+        //
+        // It must NOT destroy canvases of the scene that is becoming active: with additive loading
+        // the new scene's objects already exist when sceneLoaded fires, and Tick() can adopt its
+        // canvases a few frames BEFORE activeSceneChanged arrives. Destroying "everything not from
+        // Persistent" here killed the new level's crosshair, and the game then threw a
+        // NullReferenceException every time it tried to show it. Canvases from Persistent (and from
+        // the new scene) stay tracked, so e.g. the Fade Canvas keeps being resized across scenes.
+        SceneManager.activeSceneChanged += (oldScene, newScene) =>
         {
+            var left = oldScene.name;
+            var destroyed = 0;
+            var gone = new List<Canvas>();
             foreach (var canvas in _converted)
             {
-                if (canvas == null || !_originScene.TryGetValue(canvas, out var scene) || scene == "Persistent")
+                if (canvas == null)
+                {
+                    gone.Add(canvas);
+                    continue;
+                }
+                if (!_originScene.TryGetValue(canvas, out var origin) || origin == "Persistent" || origin == newScene.name)
                 {
                     continue;
                 }
-                UnityEngine.Object.Destroy(canvas.gameObject);
+                if (origin == left || !SceneManager.GetSceneByName(origin).isLoaded)
+                {
+                    UnityEngine.Object.Destroy(canvas.gameObject);
+                    gone.Add(canvas);
+                    destroyed++;
+                }
             }
-            _converted.Clear();
+            foreach (var canvas in gone)
+            {
+                _converted.Remove(canvas);
+                _fadeCanvases.Remove(canvas);
+                if (canvas != null)
+                {
+                    _originScene.Remove(canvas);
+                }
+            }
             _skipped.Clear();
-            _originScene.Clear();
-            _fadeCanvases.Clear();
-            VRModFixLog.Info("[CanvasFix] Scene changed: cleared this level's adopted canvases so the new scene's own UI gets picked up fresh.");
+            VRModFixLog.Info($"[CanvasFix] Scene changed '{left}' -> '{newScene.name}': destroyed {destroyed} adopted canvas(es) from the level just left; the new scene's own UI is picked up as usual.");
         };
     }
 

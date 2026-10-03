@@ -16,12 +16,13 @@ namespace UnityVRModFix;
 // If the game being modded uses any of those same keys for gameplay (e.g. a numeric keypad
 // control panel), playing normally randomly mutates the VR mod's config at runtime, which can
 // silently disable VR injection or break the camera rig. This patch disables that feature.
-[BepInPlugin("com.local.unityvrmodfix", "UnityVRMod Debug-Hotkey Fix", "1.0.0")]
+[BepInPlugin("com.local.unityvrmodfix", "UnityVRMod Debug-Hotkey Fix", "1.1.0")]
 [BepInDependency("com.newunitymodder.unityvrmod")]
 public class Plugin : BaseUnityPlugin
 {
     private void Awake()
     {
+        DiagnosticsFix.Init();
         var harmony = new Harmony("com.local.unityvrmodfix");
 
         var testerType = System.Type.GetType(
@@ -65,6 +66,7 @@ public class Plugin : BaseUnityPlugin
         // Confirmed with a debug magenta clear that never showed up. Fourth dead end - leaving
         // text-behind-geometry unresolved.
         // TransparentDepthClearFix.Apply(harmony);
+        DiagnosticsFix.Apply(harmony);
 
         // GameManager's "in dialogue" flag can get stuck true (a pre-existing game bug, not
         // us) and never clears on its own. You can't still be "in a dialogue" that belongs to a
@@ -83,6 +85,13 @@ public class Plugin : BaseUnityPlugin
 
     private void Update()
     {
+        DiagnosticsFix.Tick();
+
+        if (InputManager.GetKeyDown(KeyCode.F12) && InputManager.GetKey(KeyCode.LeftShift))
+        {
+            DiagnosticsFix.SimulateFreeze();
+        }
+
         if (InputManager.GetKeyDown(KeyCode.F9))
         {
             DumpCameras();
@@ -118,9 +127,16 @@ public class Plugin : BaseUnityPlugin
             DumpVideoPlayers();
         }
 
+        if (InputManager.GetKeyDown(KeyCode.F7))
+        {
+            VoiceLoggerFix.Enabled = !VoiceLoggerFix.Enabled;
+            Logger.LogInfo($"[Plugin] VoiceLoggerFix {(VoiceLoggerFix.Enabled ? "enabled" : "disabled")}.");
+        }
+
         CanvasFix.Tick();
         ActionEnableFix.Tick();
         VideoFix.Tick();
+        VoiceLoggerFix.Tick();
     }
 
     private void LateUpdate()

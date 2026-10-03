@@ -67,15 +67,18 @@ internal static class PointerFix
                 $"hitLayer={(didHit ? LayerMask.LayerToName(hit.collider.gameObject.layer) : "-")} isInteractable={isInteractable}");
         }
 
+        // The game's own Enable/DisableCrosshair dereference its crosshair object; if that UI was
+        // destroyed (scene change race) they throw every frame. The interaction itself doesn't depend
+        // on the crosshair, so don't let a missing crosshair break the raycast logic.
         if (isInteractable)
         {
-            __instance.EnableCrosshair();
+            try { __instance.EnableCrosshair(); } catch (System.NullReferenceException) { }
             _hitField.SetValue(__instance, hit);
             _canInteractField.SetValue(__instance, true);
         }
         else
         {
-            __instance.DisableCrosshair();
+            try { __instance.DisableCrosshair(); } catch (System.NullReferenceException) { }
             _canInteractField.SetValue(__instance, false);
         }
 

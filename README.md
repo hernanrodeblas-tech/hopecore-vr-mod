@@ -23,7 +23,7 @@ Grab **`HOPECORE-VR-Mod-vX.Y-AllInOne.zip`** from the [Releases page](../../rele
 BepInEx, UnityVRMod, and our own `UnityVRModFix` plugin together, already configured.
 
 1. Extract the zip's contents directly into the game's install folder (the one with `HOPECORE.exe`).
-2. Steam: right-click the game -> Properties -> Launch Options -> add `-force-d3d11`.
+2. Steam: right-click the game -> Properties -> Launch Options -> add `-force-d3d11 -force-gfx-direct`.
 3. Make sure SteamVR is installed and your headset is connected/on.
 4. Launch the game normally from Steam. It starts in Safe Mode (flat screen); press **F11** once
    loaded in to switch to VR (press it again to fall back to Safe Mode if something goes wrong).
@@ -41,7 +41,7 @@ If you'd rather assemble it yourself (e.g. to use a different BepInEx/UnityVRMod
 3. Grab just `UnityVRModFix.dll` from this repo's Releases and put it in
    `BepInEx\plugins\UnityVRModFix\UnityVRModFix.dll` (or build it yourself, see "Building and deploying"
    below).
-4. Same last two steps as Option A: `-force-d3d11` launch option, SteamVR running before you launch.
+4. Same last two steps as Option A: `-force-d3d11 -force-gfx-direct` launch options, SteamVR running before you launch.
 
 ## Licenses / third-party software
 
@@ -79,6 +79,12 @@ types; never redistributed).
 
 **UnityVRMod doesn't support D3D12** (D3D11 only), and this game boots into D3D12 by default. You have to
 force `-force-d3d11` as a launch option (Steam right-click the game -> Properties -> Launch Options).
+
+**Also add `-force-gfx-direct`** (single-threaded rendering). UnityVRMod hands the eye textures to SteamVR from
+the main thread while Unity's default render thread is using the same Direct3D 11 device; on some systems that
+race freezes the game for good inside `WaitGetPoses`, in the graphics driver (seen on an NVIDIA RTX 3070 +
+Quest 2; see Troubleshooting). Direct mode removes the race. The launch options to use are therefore:
+`-force-d3d11 -force-gfx-direct`.
 
 ## The fixes (`mod\UnityVRModFix\*.cs`)
 
@@ -127,8 +133,10 @@ All applied via Harmony from `Plugin.cs` at startup. Currently active:
     (no text) and the end credits (real text); its size is recomputed every `Tick()` based on whether it
     currently has active text: small/legible with text (credits), big and very close (0.6m) without text
     (a flash meant to blind/cover the whole field of view).
-  - On scene change, destroys adopted canvases that didn't come from the "Persistent" scene (so they
-    don't pile up forever), leaving the ones that did (like the crosshair) alone.
+  - On scene change, destroys the adopted canvases that belong to the level just left (so they don't pile
+    up forever) and any left over from scenes that are no longer loaded. Canvases from "Persistent" and from
+    the scene that is becoming active stay (an earlier version destroyed the new level's crosshair here; see
+    the changelog).
   - Also disables any `RawImage` showing a live `RenderTexture` (a background camera feed) inside a
     normal canvas; the main menu has a retro pixelation filter like this, and converting its canvas to
     world space made that background camera end up recording itself, a recursive "screen inside screen"
@@ -149,6 +157,8 @@ All applied via Harmony from `Plugin.cs` at startup. Currently active:
   not on the object it follows. Forces `UpdateMethod = LateUpdate` (re-evaluated every render frame),
   which combined with the interpolation above does produce smooth camera motion following a physics
   object.
+
+- **`DiagnosticsFix.cs`**; not a gameplay fix: crash and hang forensics. Writes `BepInEx\UnityVRModFix_trace.log`, flushed on every line (BepInEx's own log is not, so its last ~2 seconds are lost in a crash). It records system/GPU info, the graphics API and rendering threading mode, a copy of the BepInEx log, Unity errors (deduplicated), scene events, a heartbeat every 5s, a watchdog thread that reports when the main thread stops running (with a snapshot of the modules on its native stack), begin/end markers around the VR rig setup and the first frames after it (`WaitGetPoses`, `Camera.Render`, `Submit`), and the headset state and events reported by OpenVR (pose validity, tracking result, activity level). It is what showed that the freezes were a driver-level race (see Troubleshooting).
 
 ## Things we tried that did NOT work (left disabled on purpose)
 
@@ -188,6 +198,8 @@ Rigidbody/Cinemachine; untested so far.
 - **F8**; dumps every `Canvas` (mode, size, whether it has text/RawImage, texture of those RawImages).
 - **F9**; dumps every `Camera` in the scene (which one is `Camera.main`, whether they have a
   `CinemachineBrain`).
+- **F7**; (experimental) toggles logging of which FMOD sound starts playing, tagged with the current scene, to the BepInEx log. Used to find which of the game's audio lines belong to which scene.
+- **Shift+F12**; blocks the main thread for 8s on purpose, to test the crash-trace watchdog and its stack snapshot (see Troubleshooting).
 
 ## Mod config (`BepInEx\config\com.newunitymodder.unityvrmod.cfg`)
 
@@ -198,27 +210,75 @@ Rigidbody/Cinemachine; untested so far.
 - `Scene-Specific Pose Overrides`; per-scene initial position/rotation for the VR rig.
 - `Safe Mode Level`; set to `FullVrReinitOnToggle` (recommended for OpenVR, avoids a stuck session when
   toggling VR by hand).
-- `Automatic Safe Mode Duration`; how long VR rendering is disabled on every scene change. Trade-off:
-  - **0.2** (current value) = more stable. At 0.1 we hit several hard, silent crashes (no C# exception,
-    the BepInEx log just cuts off) right at scene transitions.
-  - **0.1** = faster/less intrusive transitions, but more crash risk on scene change.
-  - Important: the crashes seen at 0.1 turned out to be the **AMD graphics driver**
-    (Windows exception `0xc0000005`, module "unknown", the exact same byte-for-byte stack trace inside
-    `amdxx64.dll` every time, visible in `%LOCALAPPDATA%\Temp\DesbordeGames\HOPECORE\Crashes\`), not this
-    mod or UnityVRMod. Before ruling out 0.1 entirely, it's worth updating/reinstalling the AMD driver and
-    disabling the Radeon Software overlay (a very common cause of crashes like this in games that
-    manually render to textures, like this mod does for VR).
+- `Automatic Safe Mode Duration`; how long VR rendering is disabled on every scene change. Shipped value:
+  **0.1** (fastest transitions).
+  - Together with the `-force-gfx-direct` launch option it is stable on the two machines tested (an AMD
+    Radeon RX 9070 XT, and an NVIDIA RTX 3070 + Quest 2), through full playthroughs.
+  - Without `-force-gfx-direct` we saw hard crashes and permanent freezes right at scene changes, at 0.1 and
+    even at 0.2/0.5: UnityVRMod hands the eye textures to SteamVR from the main thread while Unity's render
+    thread uses the same Direct3D 11 device (a driver-level race: a crash inside `amdxx64.dll` on AMD, a
+    freeze inside `nvwgf2umx.dll` on NVIDIA). The value itself was not the cause.
+  - If you cannot use `-force-gfx-direct`, raising it to 0.2-0.5 is a mitigation, not a fix.
+
 
 ## How to test it with the headset
 
 1. Open SteamVR first (headset connected and on).
-2. Launch the game with `-force-d3d11` (Steam launch options, or run
-   `HOPECORE.exe -force-d3d11` directly).
+2. Launch the game with `-force-d3d11 -force-gfx-direct` (Steam launch options, or run
+   `HOPECORE.exe -force-d3d11 -force-gfx-direct` directly).
 3. Check `BepInEx\LogOutput.log`; you should see
    `[VRModCore] Unity VR Mod 0.1.0 (Mono) fully initialized.` and the `[UnityVRMod Debug-Hotkey Fix]
    [...] Patched ...` lines for each fix above.
 4. The mod starts in Safe Mode (flat screen). Press **F11** to toggle Safe Mode off and switch to stereo
    rendering/head tracking (press it again to fall back to Safe Mode if something goes wrong).
+
+## Troubleshooting
+
+- **F11 does nothing / the game stays on the flat screen.** Open `BepInEx\LogOutput.log` and look for
+  `OpenVR.Init FAILED`. `Driver_WirelessHmdNotConnected` means SteamVR is running but the headset hasn't
+  connected yet: make sure the headset shows as connected in SteamVR (green icon) *before* pressing F11.
+  If there is no log at all, the mod isn't installed: you probably used "Download ZIP" on the repository
+  (source code only) instead of the all-in-one package from the Releases page.
+- **The game crashes right after pressing F11 or on a scene change.** Check that `-force-d3d11 -force-gfx-direct` are set.
+  Then send `BepInEx\UnityVRModFix_trace.log` and `BepInEx\UnityVRModFix_trace.prev.log` (previous run) plus
+  `%USERPROFILE%\AppData\LocalLow\DesbordeGames\HOPECORE\Player.log`. The trace file is flushed on every
+  line (BepInEx's own log is not, so its last ~2 seconds are usually lost in a crash) and contains system
+  and GPU info, a heartbeat every 5s, a watchdog that reports if the main thread stops, and begin/end
+  markers around the VR rig setup and the first frames after it. The **last line** says which step the
+  process died in; a `WATCHDOG` line means it hung rather than crashed, and the `STALL SNAPSHOT` lines that
+  follow list the modules (`vrclient_x64.dll`, `fmod*.dll`, the GPU driver...) the frozen main thread is
+  stuck in. If the game hangs, leave it frozen for ~30 seconds before closing it so those lines get written.
+- **The game freezes ("Not responding") and never recovers.** On an NVIDIA RTX 3070 + Quest 2 the
+  `STALL SNAPSHOT` lines in `UnityVRModFix_trace.log` showed the main thread stuck inside `WaitGetPoses`
+  (`vrclient_x64.dll` -> `d3d11.dll` -> `nvwgf2umx.dll`, the NVIDIA driver), i.e. waiting on the graphics driver,
+  not running our code. Cause: Direct3D 11 being used from two threads at once (see the launch
+  options above). First add `-force-gfx-direct`; if it still happens, raise `OpenVR WaitGetPoses Delay (ms)`
+  (default 2) to 6-8, and send `Steam\logs\vrcompositor.txt` and `vrserver.txt` from that moment.
+- **The headset image freezes but the game keeps running on the PC.** If `BepInEx\LogOutput.log` fills with `UpdatePoses: HMD pose NOT valid`, SteamVR stopped receiving tracking from the headset (connection drop or the headset going to standby), not a game problem. The `OpenVR HMD state` lines in `UnityVRModFix_trace.log` show the exact moment and the activity level (`UserInteraction` vs `Standby`/`Timeout`). Check the connection (cable, Air Link / Virtual Desktop Wi-Fi) and `Steam\logs\vrserver.txt`.
+- **Windows Event Viewer** (Windows Logs -> Application, "Application Error" from `HOPECORE.exe`) shows
+  the faulting module and exception code of a hard crash, which helps tell a graphics-driver crash apart
+  from everything else.
+
+## Changelog
+
+### v1.1.0
+
+**Stability**
+- **Fixed: permanent freezes and hard crashes at scene changes.** Root cause: UnityVRMod submits the eye textures to SteamVR from the main thread while Unity's render thread uses the same Direct3D 11 device. Fix: launch the game with `-force-d3d11 -force-gfx-direct` (single-threaded rendering). Verified on two machines (AMD RX 9070 XT; NVIDIA RTX 3070 + Quest 2) with `Automatic Safe Mode Duration` at 0.1, which is again the shipped value.
+- **Fixed:** a `NullReferenceException` thrown every frame while the VR rig was destroyed between scenes (`?.` does not detect destroyed Unity objects), which also aborted the rest of the plugin's `Update`.
+- **Fixed:** the new level's crosshair was destroyed on scene change (the cleanup ran between `sceneLoaded` and `activeSceneChanged` and killed canvases of the incoming scene), so the game threw every time it tried to show it. The Fade Canvas also stays tracked across scenes now.
+- **Fixed:** `PointerFix` no longer throws if the game's crosshair does not exist.
+
+**Diagnostics**
+- Added `DiagnosticsFix` and `BepInEx\UnityVRModFix_trace.log` (see above). `InstantFlushing = true` is now shipped in `BepInEx.cfg`.
+- Added **Shift+F12** (simulated 8s freeze, to test the watchdog) and **F7** (experimental FMOD sound logger).
+
+**Docs**
+- README: launch options, troubleshooting section, this changelog.
+
+### v1.0.0
+
+First stable release: head tracking with Cinemachine camera follow, height fix, gaze-based interaction, UI canvases converted to world space (dialogue, menus, crosshair, credits), cutscene video redirected to a panel, screen-flash (Fade Canvas) sizing, fix for the recursive screen in the main menu, Rigidbody interpolation + Cinemachine `LateUpdate` for smooth canoe/stones, head-relative movement, scene-specific movement lock, and the all-in-one install package.
 
 ## Building and deploying after a change
 

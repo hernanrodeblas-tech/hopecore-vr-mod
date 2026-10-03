@@ -82,6 +82,10 @@
       <HintPath>Unity.Cinemachine.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="FMODUnity">
+      <HintPath>FMODUnity.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
 </Project>

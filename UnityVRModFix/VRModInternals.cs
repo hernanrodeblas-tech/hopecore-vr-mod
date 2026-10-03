@@ -46,8 +46,10 @@ internal static class VRModInternals
 
         _vrRigField ??= cameraSetup.GetType().GetField(
             "_vrRig", BindingFlags.NonPublic | BindingFlags.Instance);
+        // Not "?.": that only checks the C# reference, so a rig Unity already destroyed (scene
+        // unloaded, rebuild not done yet) would still get .transform called on it and throw.
         var vrRigGO = _vrRigField?.GetValue(cameraSetup) as GameObject;
-        return vrRigGO?.transform;
+        return vrRigGO != null ? vrRigGO.transform : null;
     }
 
     internal static Transform GetTrackedOriginalCameraTransform(object cameraSetup = null)
@@ -61,6 +63,6 @@ internal static class VRModInternals
         _trackedCameraGoField ??= cameraSetup.GetType().GetField(
             "_currentlyTrackedOriginalCameraGO", BindingFlags.NonPublic | BindingFlags.Instance);
         var go = _trackedCameraGoField?.GetValue(cameraSetup) as GameObject;
-        return go?.transform;
+        return go != null ? go.transform : null;
     }
 }

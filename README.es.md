@@ -28,8 +28,9 @@ UnityVRMod y nuestro propio plugin `UnityVRModFix` juntos, ya configurados.
    `HOPECORE.exe`).
 2. Steam: clic derecho al juego -> Propiedades -> Opciones de lanzamiento -> añade `-force-d3d11 -force-gfx-direct`.
 3. Asegúrate de tener SteamVR instalado y el visor conectado/encendido.
-4. Lanza el juego normal desde Steam. Arranca en Safe Mode (pantalla plana); pulsa **F11** una vez
-   cargado para pasar a VR (púlsalo otra vez para volver a Safe Mode si algo va mal).
+4. Lanza el juego normal desde Steam. VR arranca solo unos segundos después de lanzarlo (la ventana del
+   juego puede parecer congelada unos segundos mientras arranca SteamVR). **F11** sigue alternando entre VR y
+   la pantalla plana (Safe Mode) por si algo va mal.
 
 (Los pasos completos también vienen como `INSTALL.txt` dentro del zip.)
 
@@ -213,6 +214,11 @@ Rigidbody/Cinemachine; pero no se ha probado.
 - `Asserted Camera Overrides`; si UnityVRMod detecta la cámara equivocada, fuerza manualmente qué
   GameObject/cámara usar. Formato: `NombreEscena|Ruta/A/La/Camara;`. Hoy mismo se usa `MainCamera` global.
 - `Scene-Specific Pose Overrides`; posición/rotación inicial del rig VR por escena.
+- `Auto Enter VR` (en `BepInEx\config\com.local.unityvrmodfix.cfg`, se crea en la primera ejecución; por defecto `true`);
+  el mod pulsa por sí mismo el toggle de Safe Mode de UnityVRMod (lo mismo que F11) ~3 segundos después de que
+  UnityVRMod haya arrancado, para que no tengas que hacerlo tú. Si SteamVR o el visor no están listos se queda
+  en pantalla plana y F11 sigue funcionando. Ponlo a `false` para arrancar en plano y pulsar F11 tú. (El
+  `Safe Mode Starts Active = false` de UnityVRMod no hace esto: sin un toggle nunca inicializa VR.)
 - `Safe Mode Level`; en `FullVrReinitOnToggle` (recomendado para OpenVR, evita sesiones colgadas al
   activar/desactivar VR a mano).
 - `Automatic Safe Mode Duration`; cuánto se desactiva el render VR en cada cambio de escena. Valor con el
@@ -235,12 +241,13 @@ Rigidbody/Cinemachine; pero no se ha probado.
 3. Revisa `BepInEx\LogOutput.log`; deberías ver
    `[VRModCore] Unity VR Mod 0.1.0 (Mono) fully initialized.` y las líneas `[UnityVRMod Debug-Hotkey Fix]
    [...] Patched ...` de cada arreglo de arriba.
-4. El mod arranca en Safe Mode (pantalla plana). Pulsa **F11** para desactivar el Safe Mode y pasar al
-   renderizado estéreo/head-tracking (púlsalo otra vez para volver a Safe Mode si algo va mal).
+4. El mod desactiva solo el Safe Mode de UnityVRMod unos segundos después de lanzar el juego (ver `Auto Enter VR`
+   más abajo), así que VR arranca sin pulsar ninguna tecla. **F11** alterna entre VR y la pantalla plana
+   (Safe Mode).
 
 ## Solución de problemas
 
-- **F11 no hace nada / el juego se queda en pantalla plana.** Abre `BepInEx\LogOutput.log` y busca
+- **VR no arranca solo / F11 no hace nada / el juego se queda en pantalla plana.** Abre `BepInEx\LogOutput.log` y busca
   `OpenVR.Init FAILED`. `Driver_WirelessHmdNotConnected` significa que SteamVR está abierto pero el visor
   aún no se ha conectado: asegúrate de que el visor aparece conectado en SteamVR (icono verde) *antes* de
   pulsar F11. Si no hay ningún log, el mod no está instalado: probablemente se usó "Download ZIP" del
@@ -268,6 +275,10 @@ Rigidbody/Cinemachine; pero no se ha probado.
   distinguir un crash del driver gráfico de cualquier otra cosa.
 
 ## Registro de cambios
+
+### v1.2.0
+
+- **Añadido:** `Auto Enter VR` (activado por defecto): VR arranca solo unos segundos después de lanzar el juego, sin F11. Configurable en `BepInEx\config\com.local.unityvrmodfix.cfg`.
 
 ### v1.1.0
 

@@ -15,7 +15,9 @@ internal static class VRModInternals
     private static FieldInfo _vrRigField;
     private static FieldInfo _trackedCameraGoField;
 
-    internal static object GetCameraSetup()
+    // UnityVRMod's VrVisualizationManager instance (the object that owns the camera setup and the
+    // Safe Mode state), or null until the mod has finished initializing.
+    internal static object GetVisualizationFeature()
     {
         _coreType ??= Type.GetType("UnityVRMod.Core.VRModCore, UnityVRMod");
         if (_coreType == null)
@@ -25,7 +27,12 @@ internal static class VRModInternals
 
         _vrVisualizationFeatureProp ??= _coreType.GetProperty(
             "VrVisualizationFeature", BindingFlags.NonPublic | BindingFlags.Static);
-        var visFeature = _vrVisualizationFeatureProp?.GetValue(null);
+        return _vrVisualizationFeatureProp?.GetValue(null);
+    }
+
+    internal static object GetCameraSetup()
+    {
+        var visFeature = GetVisualizationFeature();
         if (visFeature == null)
         {
             return null;

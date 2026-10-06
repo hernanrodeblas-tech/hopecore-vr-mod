@@ -16,13 +16,18 @@ namespace UnityVRModFix;
 // If the game being modded uses any of those same keys for gameplay (e.g. a numeric keypad
 // control panel), playing normally randomly mutates the VR mod's config at runtime, which can
 // silently disable VR injection or break the camera rig. This patch disables that feature.
-[BepInPlugin("com.local.unityvrmodfix", "UnityVRMod Debug-Hotkey Fix", "1.1.0")]
+[BepInPlugin("com.local.unityvrmodfix", "UnityVRMod Debug-Hotkey Fix", "1.2.0")]
 [BepInDependency("com.newunitymodder.unityvrmod")]
 public class Plugin : BaseUnityPlugin
 {
     private void Awake()
     {
         DiagnosticsFix.Init();
+        AutoEnterVrFix.Enabled = Config.Bind(
+            "General", "Auto Enter VR", true,
+            "If true, the mod turns UnityVRMod's Safe Mode off by itself a few seconds after the game starts " +
+            "(the same as pressing F11), so VR starts without any key press. If SteamVR or the headset isn't " +
+            "ready it stays on the flat screen and F11 still works. Set to false to start flat and press F11 yourself.").Value;
         var harmony = new Harmony("com.local.unityvrmodfix");
 
         var testerType = System.Type.GetType(
@@ -86,6 +91,7 @@ public class Plugin : BaseUnityPlugin
     private void Update()
     {
         DiagnosticsFix.Tick();
+        AutoEnterVrFix.Tick();
 
         if (InputManager.GetKeyDown(KeyCode.F12) && InputManager.GetKey(KeyCode.LeftShift))
         {
